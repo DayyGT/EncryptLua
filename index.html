@@ -97,7 +97,6 @@ fileInput.addEventListener("change",()=>{
   r.readAsText(file);
 });
 
-// ===== helpers =====
 function toHex(str){
   let h = "";
   for(let i=0;i<str.length;i++){
@@ -110,12 +109,10 @@ function encrypt(){
   const src = document.getElementById("input").value;
   if(!src) return alert("Script kosong!");
 
-  // 3 layer hex biar keliatan "lebih ribet"
   const L1 = toHex(src);
   const L2 = toHex(L1);
   const L3 = toHex(L2);
 
-  // shift biar ada "cipher"
   const shift = 157;
   let finalHex = "";
 
@@ -124,38 +121,12 @@ function encrypt(){
     finalHex += ((b + shift) % 256).toString(16).padStart(2,"0");
   }
 
-  // output lua "lebih obfuscated" (tetap aman)
-  const out =
-`--[[ D-Encrypt v1.0 (Safe) ]]
--- by Dayy
+  // output lua
+  let out =
+`--[[ D-Encrypt v1.0 (Safe) ]] return(function()local h="${finalHex}"local s=${shift}local function dec(x)local t={}for i=1,#x,2 do local b=tonumber(x:sub(i,i+1),16)t[#t+1]=string.char((b-s)%256)end return table.concat(t)end local function fromhex(hex)return(hex:gsub("..",function(cc)return string.char(tonumber(cc,16))end))end local a=dec(h)local b=fromhex(a)local c=fromhex(b)local f=(_G["lo".."ad"]or load)return f(c)()end)()`;
 
-return (function()
-  local h = "${finalHex}"
-  local s = ${shift}
-
-  local function dec(x)
-    local t = {}
-    for i = 1, #x, 2 do
-      local b = tonumber(x:sub(i,i+1), 16)
-      t[#t+1] = string.char((b - s) % 256)
-    end
-    return table.concat(t)
-  end
-
-  local function fromhex(hex)
-    return (hex:gsub("..", function(cc)
-      return string.char(tonumber(cc,16))
-    end))
-  end
-
-  local a = dec(h)
-  local b = fromhex(a)
-  local c = fromhex(b)
-
-  local f = (_G["lo".."ad"] or load)
-  return f(c)()
-end)()
-`;
+  // pastiin 1 line beneran (hapus enter/tab doang kalau ada)
+  out = out.replace(/\r?\n/g," ").replace(/\t/g," ").replace(/\s+/g," ").trim();
 
   document.getElementById("output").value = out;
 }
